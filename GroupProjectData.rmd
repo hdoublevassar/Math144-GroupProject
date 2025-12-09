@@ -1,0 +1,84 @@
+---
+title: "Theming with bslib and thematic"
+output: 
+  html_document:
+    code_folding: show
+    theme:
+      bg: "#202123"
+      fg: "#B8BCC2"
+      primary: "#EA80FC"
+      secondary: "#00DAC6"
+      base_font:
+        google: Prompt
+      heading_font:
+        google: Proza Libre
+---
+
+```{r setup, include=FALSE}
+source("GroupProjectSetup.r")
+```
+
+# Exploratory Analysis
+
+## Creating a Table
+```{r Summary}
+app_country_chart <- Social_Media_Data %>%
+  group_by(Country, Most_Used_Platform) %>%
+  summarise(Count = n(), .groups = 'drop') %>%
+  pivot_wider(names_from = Country, values_from = Count, values_fill = 0) # Makes the country the header name
+
+most_used_app_per_country <- Social_Media_Data %>%
+  count(Country, Most_Used_Platform, name = "Count") %>%
+  group_by(Country) %>%
+  slice_max(Count, n = 1)
+
+# I'm finidng and adding color codes for the apps and adding them to a df here to make them usable for the map
+
+app_color_matrix <- matrix(
+  c("Instagram", "#E1306C",
+    "TikTok", "#000000",
+    "Facebook", "#1877F2",
+    "Twitter", "#1DA1F2",
+    "YouTube", "#FF0000",
+    "Snapchat","#FFFC00",
+    "WhatsApp", "#25d366",
+    "WeChat", "#09B83E",
+    "VKontakte", "#5181B8",
+    "KakaoTalk", "	#FEE500",
+    "LINE", "#00B900",
+    "LinkedIn", "#006192"),
+  nrow = 12,
+  ncol = 2,
+  byrow = TRUE,
+  dimnames = list(NULL, c("Most_Used_Platform", "Color"))
+)
+
+app_color_matrix <- as.data.frame(app_color_matrix, stringsAsFactors = FALSE)
+
+view(app_color_matrix)
+view(app_country_chart)
+view(most_used_app_per_country)
+```
+
+## Mapping most_used_app_per_country
+```{r ggplot Maps}
+world_map <- map_data("world") %>%
+  rename(Country = region)
+
+combined_map <- world_map %>%
+  left_join(most_used_app_per_country, by = "Country") %>%
+  left_join(app_color_matrix, by = "Most_Used_Platform")
+view(combined_map)
+```
+
+```{r Final-Map}
+combined_visual_map <- 
+ggplot(combined_map, aes(x = long, y = lat, group = group))+
+  geom_polygon(aes(fill = Most_Used_Platform), color = "black", alpha = 0.7) + 
+  scale_fill_manual(values = setNames(
+    combined_map$Color, combined_map$Most_Used_Platform)) +
+  coord_cartesian(xlim = c(-200, 200), ylim = c(-90, 90)) +
+  labs(title = "Most Common Platform", x = "Longitude", y = "Latitude")
+
+ggsave("combined_visual_map.png", plot = combined_visual_map, width = 24, height = 10.8, dpi = 1000)
+```
