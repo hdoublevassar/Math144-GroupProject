@@ -15,12 +15,13 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-source("GroupProjectSetup.r")
+source("GroupProjectSetup.R")
 ```
 
 # Exploratory Analysis
 
 ## Creating a Table
+For this section, I created two new df which 
 ```{r Summary}
 app_country_chart <- Social_Media_Data %>%
   group_by(Country, Most_Used_Platform) %>%
@@ -31,9 +32,11 @@ most_used_app_per_country <- Social_Media_Data %>%
   count(Country, Most_Used_Platform, name = "Count") %>%
   group_by(Country) %>%
   slice_max(Count, n = 1)
+```
 
-# I'm finidng and adding color codes for the apps and adding them to a df here to make them usable for the map
-
+## Adding Colors
+Googled app color codes and created a new matrix which I the converted into a df because I
+```{r Colors}
 app_color_matrix <- matrix(
   c("Instagram", "#E1306C",
     "TikTok", "#000000",
@@ -80,5 +83,9 @@ ggplot(combined_map, aes(x = long, y = lat, group = group))+
   coord_cartesian(xlim = c(-200, 200), ylim = c(-90, 90)) +
   labs(title = "Most Common Platform", x = "Longitude", y = "Latitude")
 
-ggsave("combined_visual_map.png", plot = combined_visual_map, width = 24, height = 10.8, dpi = 1000)
+# ggsave("combined_visual_map.png", plot = combined_visual_map, width = 24, height = 10.8, dpi = 1000)
+
+ggplotly(combined_visual_map)
+
 ```
+
