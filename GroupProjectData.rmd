@@ -21,7 +21,7 @@ source("GroupProjectSetup.R")
 # Exploratory Analysis
 
 ## Creating a Table
-For this section, I created two new df which 
+For this section, I created two new df, one which tracks how many people primarily used each platform from each measured country, and one that attatches the most used platform for each coutry along with the number of people using it.
 ```{r Summary}
 app_country_chart <- Social_Media_Data %>%
   group_by(Country, Most_Used_Platform) %>%
@@ -35,25 +35,25 @@ most_used_app_per_country <- Social_Media_Data %>%
 ```
 
 ## Adding Colors
-Googled app color codes and created a new matrix which I the converted into a df because I
-```{r Colors}
+Googled app color codes and created a new matrix which I then converted into a df for use in my project for coloring the map
+```{r Colors-and-Patters}
 app_color_matrix <- matrix(
-  c("Instagram", "#E1306C",
-    "TikTok", "#000000",
-    "Facebook", "#1877F2",
-    "Twitter", "#1DA1F2",
-    "YouTube", "#FF0000",
-    "Snapchat","#FFFC00",
-    "WhatsApp", "#25d366",
-    "WeChat", "#09B83E",
-    "VKontakte", "#5181B8",
-    "KakaoTalk", "	#FEE500",
-    "LINE", "#00B900",
-    "LinkedIn", "#006192"),
+  c("Instagram", "#E1306C", "none",
+    "TikTok", "#000000", "none",
+    "Facebook", "#1474f1", "none", 
+    "Twitter", "#83ccfa", "circle", 
+    "YouTube", "#FF0000", "none", 
+    "Snapchat","#FFFC00", "none", 
+    "WhatsApp", "#25d366", "none",
+    "WeChat", "#09B83E", "crosshatch",
+    "VKontakte", "#5989c0", "stripe",
+    "KakaoTalk", "#fec300dc", "stripe",
+    "LINE", "#00b900a1", "stripe",
+    "LinkedIn", "#006192b9", "crosshatch"),
   nrow = 12,
-  ncol = 2,
+  ncol = 3,
   byrow = TRUE,
-  dimnames = list(NULL, c("Most_Used_Platform", "Color"))
+  dimnames = list(NULL, c("Most_Used_Platform", "Color", "Pattern"))
 )
 
 app_color_matrix <- as.data.frame(app_color_matrix, stringsAsFactors = FALSE)
@@ -63,7 +63,54 @@ view(app_country_chart)
 view(most_used_app_per_country)
 ```
 
-## Mapping most_used_app_per_country
+## Creating Tables
+Using the library gt, to create a table, I produced a table which counts how many countries primarily use a specific service and ordered by most used. For this section, I google how to create almost every component of a gt table.
+```{r Creating-Tables}
+app_count <- most_used_app_per_country %>%
+  group_by(Most_Used_Platform) %>%
+  summarise(Countries_Count = n()) %>%
+  arrange(desc(Countries_Count))
+
+  app_count_with_colors <- app_count %>%
+    left_join(app_color_matrix, by = "Most_Used_Platform")
+
+  app_count_table <- app_count_with_colors %>%
+    gt() %>%
+    cols_label(
+      Most_Used_Platform = "Platform",
+      Countries_Count = "Countries"
+    ) %>%
+    cols_hide(c(Color, Pattern)) %>%
+    tab_style(
+      style = cell_fill(color = "#000000"),
+      locations = cells_column_labels()
+    ) %>%
+    tab_style(
+      style = cell_text(weight = "bold", color = "#FFFFFF"),
+      locations = cells_column_labels()
+    ) %>%
+    tab_style(
+      style = cell_text(color = "#FFFFFF"),
+      locations = cells_body()
+    ) %>%
+    data_color(
+      columns = everything(),
+      rows = everything(),
+      fn = function(x) app_count_with_colors$Color
+    ) %>%
+    tab_options(
+      table.background.color = "#6f7072",
+      table.font.color = "#FFFFFF",
+      column_labels.font.size = px(14),
+      table.border.top.color = "#00DAC6",
+      table.border.bottom.color = "#00DAC6"
+    )
+
+app_count_table
+gtsave(app_count_table, "app_count_table.png", vwidth = 1500)
+```
+## Map Data
+Created the world_map using the map_data function of ggplot2 and renamed region to country in order to match the other dataframes. Finally I joined app_color_matrix and most_used_app_per_country by country, then by Most_Used_Platform so that colors corresponded to platform. 
 ```{r ggplot Maps}
 world_map <- map_data("world") %>%
   rename(Country = region)
@@ -74,18 +121,31 @@ combined_map <- world_map %>%
 view(combined_map)
 ```
 
+## Creating the Map
+Using a standard ggplot function, I used the combined_maps df to create an object called combined_visual_map, which took the output of the ggplot function of combined_maps. Geom_polygon created the borders of the world map, and the color was associated with the most used platform of a country. The original colors were too harsh so I added the Alpha function to make them ever so slightly more transparent so they look like highlights, and don't overpower the rest of the map. Lastly I added labels and limited the map to the proper lat and long values to match the real world map. Once the map was complete, I saved it in the same ratio of dimensions as to preserve how the map looked as an image. GGplotly was also used to create an interactive version, which will tell the most used platform as you hover over each country.
 ```{r Final-Map}
-combined_visual_map <- 
-ggplot(combined_map, aes(x = long, y = lat, group = group))+
-  geom_polygon(aes(fill = Most_Used_Platform), color = "black", alpha = 0.7) + 
-  scale_fill_manual(values = setNames(
-    combined_map$Color, combined_map$Most_Used_Platform)) +
+# Replace NA patterns with "none"
+combined_map <- combined_map %>%
+  mutate(Pattern = replace_na(Pattern, "none"))
+
+
+combined_visual_map <-
+  ggplot(combined_map, aes(x = long, y = lat, group = group)) +
+  geom_polygon(
+    aes(fill = Most_Used_Platform),
+    color = "black", alpha = 0.7) +
+  scale_fill_manual(
+    values = setNames(combined_map$Color, combined_map$Most_Used_Platform)
+  ) +
+  annotate(geom = "text", x = 95, y = 60, label = "VKontakte") +
+  annotate(geom = "text", x = 144, y = 34, label = "LINE") +
+  annotate(geom = "text", x = 100, y = 34, label = "WeChat")+
   coord_cartesian(xlim = c(-200, 200), ylim = c(-90, 90)) +
   labs(title = "Most Common Platform", x = "Longitude", y = "Latitude")
 
-# ggsave("combined_visual_map.png", plot = combined_visual_map, width = 24, height = 10.8, dpi = 1000)
-
-ggplotly(combined_visual_map)
-
+ggsave("combined_visual_map.png", plot = combined_visual_map, width = 24, height = 10.8, dpi = 1000)
 ```
+
+
+
 
