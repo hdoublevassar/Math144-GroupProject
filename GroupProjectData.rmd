@@ -1,21 +1,21 @@
 ---
-title: "Theming with bslib and thematic"
+title: "Social Media Data Project"
+author: "Hudson Double"
+date: "`r Sys.Date()`"
 output: 
   html_document:
-    code_folding: show
-    theme:
-      bg: "#202123"
-      fg: "#B8BCC2"
-      primary: "#EA80FC"
-      secondary: "#00DAC6"
-      base_font:
-        google: Prompt
-      heading_font:
-        google: Proza Libre
+    theme: yeti
+    toc: true
+    number_sections: true
+    highlight: tango
 ---
 
 ```{r setup, include=FALSE}
-source("GroupProjectSetup.R")
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(tidyverse, ggplot2, bslib, ggpubr, dplyr, plotly, gt) 
+# Pacman functions explained: https://www.epirhandbook.com/en/new_pages/basics.html
+
+Social_Media_Data <- read.csv("Students Social Media Addiction.csv") # Reads CSV Data
 ```
 
 # Exploratory Analysis
@@ -34,8 +34,9 @@ most_used_app_per_country <- Social_Media_Data %>%
   slice_max(Count, n = 1)
 ```
 
+
 ## Adding Colors
-Googled app color codes and created a new matrix which I then converted into a df for use in my project for coloring the map
+Googled app color codes and created a new matrix which I then converted into a df for use in my project for coloring the map and the table, but these colors were slightly altered for viewability.
 ```{r Colors-and-Patters}
 app_color_matrix <- matrix(
   c("Instagram", "#E1306C", "none",
@@ -69,12 +70,16 @@ Using the library gt, to create a table, I produced a table which counts how man
 app_count <- most_used_app_per_country %>%
   group_by(Most_Used_Platform) %>%
   summarise(Countries_Count = n()) %>%
-  arrange(desc(Countries_Count))
+  arrange(desc(Countries_Count)) %>%
+  left_join(app_color_matrix, by = "Most_Used_Platform")
 
-  app_count_with_colors <- app_count %>%
-    left_join(app_color_matrix, by = "Most_Used_Platform")
+app_count_totals <- Social_Media_Data %>%
+  group_by(Most_Used_Platform) %>%
+  summarize(User_Count = n()) %>%
+  arrange(desc(User_Count)) %>%
+  left_join(app_color_matrix, by = "Most_Used_Platform")
 
-  app_count_table <- app_count_with_colors %>%
+app_count_table <- app_count %>%
     gt() %>%
     cols_label(
       Most_Used_Platform = "Platform",
@@ -96,7 +101,7 @@ app_count <- most_used_app_per_country %>%
     data_color(
       columns = everything(),
       rows = everything(),
-      fn = function(x) app_count_with_colors$Color
+      fn = function(x) app_count$Color
     ) %>%
     tab_options(
       table.background.color = "#6f7072",
@@ -106,9 +111,59 @@ app_count <- most_used_app_per_country %>%
       table.border.bottom.color = "#00DAC6"
     )
 
+
+app_count_total_tb <- app_count_totals %>%
+    gt() %>%
+    cols_label(
+      Most_Used_Platform = "Platform",
+      User_Count = "Users"
+    ) %>%
+    cols_hide(c(Color, Pattern)) %>%
+    tab_style(
+      style = cell_fill(color = "#000000"),
+      locations = cells_column_labels()
+    ) %>%
+    tab_style(
+      style = cell_text(weight = "bold", color = "#FFFFFF"),
+      locations = cells_column_labels()
+    ) %>%
+    tab_style(
+      style = cell_text(color = "#FFFFFF"),
+      locations = cells_body()
+    ) %>%
+    data_color(
+      columns = everything(),
+      rows = everything(),
+      fn = function(x) app_count_totals$Color
+    ) %>%
+    tab_options(
+      table.background.color = "#6f7072",
+      table.font.color = "#FFFFFF",
+      column_labels.font.size = px(14),
+      table.border.top.color = "#00DAC6",
+      table.border.bottom.color = "#00DAC6"
+    )
 app_count_table
-gtsave(app_count_table, "app_count_table.png", vwidth = 1500)
+app_count_total_tb
+# only run each of these once
+# gtsave(app_count_total_tb, "app_count_total.png", vwidth = 1500)
+# gtsave(app_count_table, "app_count_table.png", vwidth = 1500) 
 ```
+## App Users in Sample
+For this section, I am using the total usership counts in order to create a pie chart of popularity worldwide. For the colors, I selected those that correspond with each service.
+```{r App-Usership}
+app_user_piechart <-
+ggplot(app_count_totals, aes(x = "", y = User_Count, fill = Most_Used_Platform)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y", start = 0) +
+  scale_fill_manual(values = setNames(app_count_totals$Color, app_count_totals$Most_Used_Platform)) +
+  labs(title = "Total Users in Sample by Platform", x = NULL, y = NULL) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# ggsave("piechart.png", plot = app_user_piechart, width = 10, height = 8, dpi = 1000)
+```
+
 ## Map Data
 Created the world_map using the map_data function of ggplot2 and renamed region to country in order to match the other dataframes. Finally I joined app_color_matrix and most_used_app_per_country by country, then by Most_Used_Platform so that colors corresponded to platform. 
 ```{r ggplot Maps}
@@ -122,12 +177,10 @@ view(combined_map)
 ```
 
 ## Creating the Map
-Using a standard ggplot function, I used the combined_maps df to create an object called combined_visual_map, which took the output of the ggplot function of combined_maps. Geom_polygon created the borders of the world map, and the color was associated with the most used platform of a country. The original colors were too harsh so I added the Alpha function to make them ever so slightly more transparent so they look like highlights, and don't overpower the rest of the map. Lastly I added labels and limited the map to the proper lat and long values to match the real world map. Once the map was complete, I saved it in the same ratio of dimensions as to preserve how the map looked as an image. GGplotly was also used to create an interactive version, which will tell the most used platform as you hover over each country.
+Using a standard ggplot function, I used the combined_maps df to create an object called combined_visual_map, which took the output of the ggplot function of combined_maps. Geom_polygon created the borders of the world map, and the color was associated with the most used platform of a country. The original colors were too harsh so I added the Alpha function to make them ever so slightly more transparent so they look like highlights, and don't overpower the rest of the map. Lastly I added labels and limited the map to the proper lat and long values to match the real world map. Once the map was complete, I saved it in the same ratio of dimensions as to preserve how the map looked as an image. Annotations, were added to produce GGplotly was also used to create an interactive version, which will tell the most used platform as you hover over each country, but this will not be included in the presentation.
 ```{r Final-Map}
-# Replace NA patterns with "none"
 combined_map <- combined_map %>%
   mutate(Pattern = replace_na(Pattern, "none"))
-
 
 combined_visual_map <-
   ggplot(combined_map, aes(x = long, y = lat, group = group)) +
@@ -143,9 +196,19 @@ combined_visual_map <-
   coord_cartesian(xlim = c(-200, 200), ylim = c(-90, 90)) +
   labs(title = "Most Common Platform", x = "Longitude", y = "Latitude")
 
-ggsave("combined_visual_map.png", plot = combined_visual_map, width = 24, height = 10.8, dpi = 1000)
+# ggsave("combined_visual_map.png", plot = combined_visual_map, width = 24, height = 10.8, dpi = 1000)
 ```
 
 
+## Measuring Proportions
+Companies owned by meta control over 50% of the sample, I am just seeking to measure that percentage
+```{r Math}
+MetaProportion <- app_count_totals %>%
+  group_by(Most_Used_Platform) %>%
+  filter(Most_Used_Platform %in% c("Instagram", "Facebook", "WhatsApp")) %>%
+  summarise(Total_Meta_Users = sum(User_Count))
+
+sum(MetaProportion$Total_Meta_Users)/sum(app_count_totals$User_Count)
+```
 
 
